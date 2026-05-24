@@ -4666,7 +4666,10 @@ def comment_replies(offset='0'):
 def hot_song_comments():
     """获取当前播放歌曲的热门评论"""
     items = current_song_comments('0')
-    return [item for item in items if item.get('properties', {}).get('comment_type') == 'hot']
+    hot = [item for item in items if item.get('properties', {}).get('comment_type') == 'hot']
+    if not hot:
+        hot.append({'label': '暂无热门评论', 'path': '', 'is_playable': False})
+    return hot
 
 
 def latest_song_comments(offset='0'):
@@ -4717,6 +4720,8 @@ def latest_song_comments(offset='0'):
             pass
 
     xbmc.log(f'[Music Comments] latest_song_comments offset={offset} returning {len(latest_items)} items', xbmc.LOGDEBUG)
+    if not latest_items:
+        latest_items.append({'label': '暂无评论', 'path': '', 'is_playable': False})
     return latest_items
 
 

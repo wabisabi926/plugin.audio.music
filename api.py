@@ -1104,7 +1104,7 @@ class NetEase(object):
         """
         上传歌曲播放记录到网易云（听歌打卡）
 
-        使用 apis.netstart.cn 公开API，无需加密
+        使用官方 weapi/feedback/weblog 接口，weapi加密
 
         Args:
             id: 歌曲ID
@@ -1112,13 +1112,22 @@ class NetEase(object):
             time: 播放时长（秒）
         """
         try:
-            url = f'https://apis.netstart.cn/music/scrobble?id={id}&sourceid={sourceId}&time={time}'
-            result = requests.get(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}, timeout=5).json()
+            import json
+            song_id = int(id)
+            t = int(time)
+            logs = json.dumps([
+                {"action": "play", "json": {"id": song_id, "type": "song", "source": "list", "time": 0}},
+                {"action": "progress", "json": {"id": song_id, "type": "song", "source": "list", "time": t // 2}},
+                {"action": "end", "json": {"id": song_id, "type": "song", "source": "list", "time": t}}
+            ], separators=(',', ':'))
+            path = "/weapi/feedback/weblog"
+            params = {"logs": logs, "csrf_token": ""}
+            result = self.request("POST", path, params)
             if result.get('code') == 200:
-                xbmc.log(f'[Daka] 打卡成功: song_id={id}, sourceid={sourceId}, time={time}s', xbmc.LOGINFO)
+                xbmc.log(f'[Daka] 打卡成功: song_id={id}, time={time}s', xbmc.LOGINFO)
                 return result
             else:
-                xbmc.log(f'[Daka] 打卡失败: code={result.get("code")}', xbmc.LOGWARNING)
+                xbmc.log(f'[Daka] 打卡失败: code={result.get("code")}, resp={result}', xbmc.LOGWARNING)
         except Exception as e:
             xbmc.log(f'[Daka] 打卡异常: {str(e)}', xbmc.LOGERROR)
         return {"code": -1, "msg": "打卡失败"}
