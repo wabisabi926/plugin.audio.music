@@ -816,6 +816,22 @@ class NetEase(object):
                     import traceback
                     xbmc.log("plugin.audio.music: 换源搜索异常: %s\n%s" % (str(ex), traceback.format_exc()), xbmc.LOGERROR)
 
+            # 3. gdstudio fallback (netease+joox)
+            if not url:
+                enable_gdstudio = xbmcaddon.Addon('plugin.audio.music').getSetting('enable_gdstudio_fallback') == 'true'
+                if enable_gdstudio and (song_name or artist_name):
+                    try:
+                        from gdstudio import search_and_get_url
+                        _sn = str(song_name) if song_name else ''
+                        _an = str(artist_name) if artist_name else ''
+                        gd_url, gd_src, gd_id, gd_br, gd_size = search_and_get_url(_sn, _an, lx_quality)
+                        if gd_url:
+                            url = gd_url
+                            used_source = 'gdstudio_%s' % gd_src
+                            xbmc.log("plugin.audio.music: gdstudio OK src=%s id=%s br=%s" % (gd_src, gd_id, gd_br), xbmc.LOGINFO)
+                    except Exception as ex:
+                        xbmc.log("plugin.audio.music: gdstudio fallback error: %s" % str(ex), xbmc.LOGWARNING)
+
             xbmc.log("plugin.audio.music: songs_url_v1 id={} url={} used_source={}".format(_id, url, used_source), xbmc.LOGDEBUG)
             result_data.append({'id': _id, 'url': url, 'level': level, 'source': used_source})
 
@@ -1100,37 +1116,49 @@ class NetEase(object):
         params = dict(id=id)
         return self.request("POST", path, params)
 
-    def daka(self, id, sourceId=0, time=240):
-        """
-        上传歌曲播放记录到网易云（听歌打卡）
-
-        使用官方 weapi/feedback/weblog 接口，weapi加密
-
-        Args:
-            id: 歌曲ID
-            sourceId: 来源ID（歌单或专辑ID）
-            time: 播放时长（秒）
-        """
+    def _weblog(self, logs):
+        import json
+        params = encrypted_request({"logs": json.dumps(logs, separators=(',', ':')), "csrf_token": ""})
+        endpoint = "https://clientlogusf.music.163.com/weapi/feedback/weblog"
         try:
-            import json
-            song_id = int(id)
-            t = int(time)
-            logs = json.dumps([
-                {"action": "play", "json": {"id": song_id, "type": "song", "source": "list", "time": 0}},
-                {"action": "progress", "json": {"id": song_id, "type": "song", "source": "list", "time": t // 2}},
-                {"action": "end", "json": {"id": song_id, "type": "song", "source": "list", "time": t}}
-            ], separators=(',', ':'))
-            path = "/weapi/feedback/weblog"
-            params = {"logs": logs, "csrf_token": ""}
-            result = self.request("POST", path, params)
-            if result.get('code') == 200:
-                xbmc.log(f'[Daka] 打卡成功: song_id={id}, time={time}s', xbmc.LOGINFO)
-                return result
-            else:
-                xbmc.log(f'[Daka] 打卡失败: code={result.get("code")}, resp={result}', xbmc.LOGWARNING)
+            resp = self.session.post(endpoint, data=params, timeout=5)
+            return resp.json()
         except Exception as e:
-            xbmc.log(f'[Daka] 打卡异常: {str(e)}', xbmc.LOGERROR)
-        return {"code": -1, "msg": "打卡失败"}
+            xbmc.log(f'[Daka] weblog request error: {e}', xbmc.LOGERROR)
+            return {"code": -1}
+
+    def daka_play(self, id):
+        try:
+            result = self._weblog([{"action": "play", "json": {"id": int(id), "type": "song", "source": "list", "time": 0}}])
+            if result.get('code') == 200:
+                xbmc.log(f'[Daka] play上报成功: song_id={id}', xbmc.LOGINFO)
+            else:
+                xbmc.log(f'[Daka] play上报失败: {result}', xbmc.LOGWARNING)
+        except Exception as e:
+            xbmc.log(f'[Daka] play异常: {e}', xbmc.LOGERROR)
+
+    def daka_progress(self, id, time):
+        try:
+            result = self._weblog([{"action": "progress", "json": {"id": int(id), "type": "song", "source": "list", "time": int(time)}}])
+            if result.get('code') == 200:
+                xbmc.log(f'[Daka] progress上报成功: song_id={id}, time={time}s', xbmc.LOGINFO)
+            else:
+                xbmc.log(f'[Daka] progress上报失败: {result}', xbmc.LOGWARNING)
+        except Exception as e:
+            xbmc.log(f'[Daka] progress异常: {e}', xbmc.LOGERROR)
+
+    def daka_end(self, id, time):
+        try:
+            result = self._weblog([{"action": "end", "json": {"id": int(id), "type": "song", "source": "list", "time": int(time)}}])
+            if result.get('code') == 200:
+                xbmc.log(f'[Daka] end上报成功: song_id={id}, time={time}s', xbmc.LOGINFO)
+            else:
+                xbmc.log(f'[Daka] end上报失败: {result}', xbmc.LOGWARNING)
+        except Exception as e:
+            xbmc.log(f'[Daka] end异常: {e}', xbmc.LOGERROR)
+
+    def daka(self, id, sourceId=0, time=240):
+        self.daka_play(id)
 
     # 云盘歌曲
     def cloud_songlist(self, offset=0, limit=50):

@@ -30,6 +30,7 @@
 		<setting id="show_album_name" type="bool" label="30037" default="false" />
 		<setting id="upload_play_record" type="bool" label="30038" default="true" />
 		<setting id="enable_source_fallback" type="bool" label="30083" default="true" />
+		<setting id="enable_gdstudio_fallback" type="bool" label="GDStudio备源(netease+joox)" default="true" />
 		<setting label="30039" type="action" action="RunPlugin(plugin://plugin.audio.music/delete_thumbnails/)"/>
 	</category>
 	<category label="30040">

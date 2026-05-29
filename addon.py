@@ -30,6 +30,76 @@ if not PY3:
 ADDON_ID = 'plugin.audio.music'
 ADDON = xbmcaddon.Addon()
 
+import threading
+
+class DakaMonitor(threading.Thread):
+    _instance = None
+    _lock = threading.Lock()
+
+    def __init__(self):
+        super().__init__(daemon=True)
+        self._song_id = 0
+        self._start_time = 0
+        self._running = False
+        self._progress_interval = 60
+
+    @staticmethod
+    def _enabled():
+        return xbmcaddon.Addon('plugin.audio.music').getSetting('upload_play_record') == 'true'
+
+    @classmethod
+    def get(cls):
+        with cls._lock:
+            if cls._instance is None or not cls._instance.is_alive():
+                cls._instance = cls()
+                cls._instance.start()
+            return cls._instance
+
+    def on_play_start(self, song_id):
+        self._finish_current()
+        if not self._enabled():
+            return
+        self._song_id = int(song_id)
+        self._start_time = time.time()
+        self._running = True
+        try:
+            NetEase().daka_play(song_id)
+        except:
+            pass
+
+    def _finish_current(self):
+        if not self._running or not self._song_id:
+            return
+        self._running = False
+        if not self._enabled():
+            return
+        elapsed = int(time.time() - self._start_time)
+        if elapsed < 5:
+            return
+        try:
+            m = NetEase()
+            m.daka_progress(self._song_id, elapsed)
+            m.daka_end(self._song_id, elapsed)
+        except:
+            pass
+
+    def run(self):
+        while True:
+            time.sleep(self._progress_interval)
+            if not self._running or not self._song_id:
+                continue
+            if not self._enabled():
+                self._running = False
+                continue
+            if not xbmc.Player().isPlayingAudio():
+                self._finish_current()
+                continue
+            elapsed = int(time.time() - self._start_time)
+            try:
+                NetEase().daka_progress(self._song_id, elapsed)
+            except:
+                pass
+
 def url_for(path, **kwargs):
     url = 'plugin://%s%s' % (ADDON_ID, path)
     if kwargs:
@@ -1203,13 +1273,10 @@ def play(meida_type, song_id, mv_id, sourceId, dt, source='netease'):
         else:
             if ADDON.getSetting('upload_play_record') == 'true':
                 try:
-                    result = music.daka(song_id, sourceId=sourceId, time=dt)
-                    if result.get('code') == 200:
-                        xbmc.log(f'[Play] 播放记录上传成功: song_id={song_id}', xbmc.LOGINFO)
-                    else:
-                        xbmc.log(f'[Play] 播放记录上传失败: {result.get("msg", "未知错误")}', xbmc.LOGWARNING)
+                    DakaMonitor.get().on_play_start(song_id)
+                    xbmc.log(f'[Play] 播放记录上报已启动: song_id={song_id}', xbmc.LOGINFO)
                 except Exception as e:
-                    xbmc.log(f'[Play] 播放记录上传异常: {str(e)}', xbmc.LOGERROR)
+                    xbmc.log(f'[Play] 播放记录上报异常: {str(e)}', xbmc.LOGERROR)
     elif meida_type == 'dj':
         result = music.dj_detail(song_id)
         song_id = result.get('program', {}).get('mainSong', {}).get('id')
@@ -2112,16 +2179,12 @@ def play_recommend_songs(song_id, mv_id, dt):
         dialog.notification('播放失败', '每日推荐中没有可播放的歌曲', xbmcgui.NOTIFICATION_INFO, 800, False)
         xbmcplugin.setResolvedUrl(int(sys.argv[1]), False, xbmcgui.ListItem())
 
-    # 上传播放记录（只记录用户点击的那一首）
     if ADDON.getSetting('upload_play_record') == 'true':
         try:
-            result = music.daka(song_id, time=dt)
-            if result.get('code') == 200:
-                print(f"[Play] 播放记录上传成功: song_id={song_id}")
-            else:
-                print(f"[Play] 播放记录上传失败: {result.get('msg', '未知错误')}")
+            DakaMonitor.get().on_play_start(song_id)
+            print(f"[Play] 播放记录上报已启动: song_id={song_id}")
         except Exception as e:
-            print(f"[Play] 播放记录上传异常: {str(e)}")
+            print(f"[Play] 播放记录上报异常: {str(e)}")
 
     # ⭐ 返回空列表，避免 GetDirectory 失败
     return []
@@ -2208,13 +2271,10 @@ def play_playlist_songs(playlist_id, song_id, mv_id, dt):
     # 上传播放记录（这里用起始 song_id 和 dt）
     if ADDON.getSetting('upload_play_record') == 'true' and song_id != '0':
         try:
-            result = music.daka(song_id, time=dt)
-            if result.get('code') == 200:
-                print(f"[Play Playlist] 播放记录上传成功: song_id={song_id}")
-            else:
-                print(f"[Play Playlist] 播放记录上传失败: {result.get('msg', '未知错误')}")
+            DakaMonitor.get().on_play_start(song_id)
+            print(f"[Play Playlist] 播放记录上报已启动: song_id={song_id}")
         except Exception as e:
-            print(f"[Play Playlist] 播放记录上传异常: {str(e)}")
+            print(f"[Play Playlist] 播放记录上报异常: {str(e)}")
     return []
 
 
