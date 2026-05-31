@@ -1191,15 +1191,17 @@ def song_contextmenu(action, meida_type, song_id, mv_id, sourceId, dt):
         # 查看歌曲评论 — 在OSD评论窗口(1142)中打开
         xbmc.log(f'[Music Comments] Viewing comments for song_id: {song_id}', xbmc.LOGDEBUG)
         
-        # 保存歌曲ID到存储
-        comments_storage = safe_get_storage('comments')
-        comments_storage['current_song_id'] = song_id
-        _save_storage('comments', comments_storage)
-        xbmc.log(f'[Music Comments] Saved song_id: {song_id}', xbmc.LOGDEBUG)
+        # # 保存歌曲ID到存储
+        # comments_storage = safe_get_storage('comments')
+        # comments_storage['current_song_id'] = song_id
+        #  _save_storage('comments', comments_storage)
+        # xbmc.log(f'[Music Comments] Saved song_id: {song_id}', xbmc.LOGDEBUG)
         
         # 设置评论内容URL到Window Property，供1142的content动态读取
         comment_url = f'plugin://plugin.audio.music/song_comments/{song_id}/0/'
         xbmcgui.Window(10000).setProperty('bili_comment_content_url', comment_url)
+        xbmcgui.Window(10000).setProperty('bili_hot_comment_url', comment_url)
+        xbmcgui.Window(10000).setProperty('bili_latest_comment_url', f'plugin://plugin.audio.music/latest_song_comments/0/')
         
         # 激活OSD评论窗口
         xbmc.executebuiltin('ActivateWindow(1142)')
