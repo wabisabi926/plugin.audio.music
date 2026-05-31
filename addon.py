@@ -4316,6 +4316,7 @@ def song_comments(song_id, offset='0'):
             show_floor = comment.get('showFloorComment', {})
             reply_count = len(be_replied) or show_floor.get('replyCount', 0)
             xbmc.log(f'[Music Comments] hot comment {i}: beReplied={len(be_replied)} showFloor={show_floor.get("replyCount",0)} reply_count={reply_count}', xbmc.LOGDEBUG)
+            
             reply_summary = ''
             if be_replied:
                 r = be_replied[0]
@@ -4337,6 +4338,9 @@ def song_comments(song_id, offset='0'):
                 'comment_id': str(comment.get('commentId', '')),
                 'comment_song_id': str(song_id),
             }
+            location = comment.get('ipLocation', {}).get('location', '')
+            if location:
+                props['comment_location'] = location
             if reply_count > 0:
                 props['comment_reply_count'] = str(reply_count)
             if reply_summary:
@@ -4360,12 +4364,14 @@ def song_comments(song_id, offset='0'):
 
         # 最新评论
         comments = resp.get('comments', [])
+        xbmc.log(f'[Music Comments] result : {resp}', xbmc.LOGDEBUG)
         for i, comment in enumerate(comments, 1):
             user = comment.get('user', {})
             nickname = user.get('nickname', '匿名用户')
             content = comment.get('content', '')
             liked_count = comment.get('likedCount', 0)
             time_str = comment.get('timeStr', '')
+            location = comment.get('ipLocation', {}).get('location', '')
             avatar_url = user.get('avatarUrl', '')
             be_replied = comment.get('beReplied', [])
             show_floor = comment.get('showFloorComment', {})
@@ -4393,6 +4399,9 @@ def song_comments(song_id, offset='0'):
                 'comment_id': str(comment.get('commentId', '')),
                 'comment_song_id': str(song_id),
             }
+            location = comment.get('ipLocation', {}).get('location', '')
+            if location:
+                props['comment_location'] = location
             if reply_count > 0:
                 props['comment_reply_count'] = str(reply_count)
             if reply_summary:
@@ -4782,6 +4791,8 @@ def latest_song_comments(offset='0'):
             pass
 
     xbmc.log(f'[Music Comments] latest_song_comments offset={offset} returning {len(latest_items)} items', xbmc.LOGDEBUG)
+    
+
     if not latest_items:
         latest_items.append({'label': '暂无评论', 'path': '', 'is_playable': False})
     return latest_items
